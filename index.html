@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASCII CITY LIVE</title>
+
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23050b07'/%3E%3Ctext x='16' y='24' font-family='monospace' font-size='22' font-weight='bold' fill='%236fffab' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="./assets/styles.css">
+<style id="mode-select-style">
+  #mode-select{position:fixed;inset:0;z-index:400;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:clamp(18px,3.4vh,34px);
+    background:radial-gradient(ellipse at center,#061009 0%,#010403 70%,#000 100%);
+    font-family:Fixedsys,Lucida Console,Courier New,monospace;color:#b7ffd0;
+    text-shadow:0 0 6px rgba(111,255,171,.45);letter-spacing:.12em;padding:24px}
+  #mode-select[hidden]{display:none}
+  #mode-select .ms-title{font-size:clamp(20px,4.2vh,40px);font-weight:700;color:#6fffab;
+    text-shadow:0 0 18px rgba(111,255,171,.5)}
+  #mode-select .ms-sub{font-size:clamp(11px,1.7vh,14px);opacity:.62;margin-top:-12px}
+  #mode-select .ms-options{display:flex;gap:clamp(14px,2vw,26px);flex-wrap:wrap;
+    justify-content:center;width:min(880px,100%)}
+  #mode-select .ms-opt{flex:1 1 300px;max-width:400px;text-align:left;cursor:pointer;
+    padding:clamp(16px,2.4vh,26px);background:#030a06c4;color:inherit;font:inherit;
+    letter-spacing:inherit;border:1px solid rgba(111,255,171,.26);transition:.16s}
+  #mode-select .ms-opt:hover,#mode-select .ms-opt:focus-visible{outline:none;
+    border-color:#6fffab;background:#06170ee0;transform:translateY(-2px)}
+  #mode-select .ms-opt[aria-checked="true"]{border-color:#6fffab;
+    box-shadow:0 0 0 1px #6fffab,0 0 34px rgba(111,255,171,.22)}
+  #mode-select .ms-key{font-size:clamp(10px,1.5vh,12px);opacity:.5}
+  #mode-select .ms-name{display:block;margin:6px 0 10px;font-size:clamp(15px,2.4vh,21px);
+    font-weight:700;color:#6fffab}
+  #mode-select .ms-desc{display:block;font-size:clamp(11px,1.65vh,13.5px);line-height:1.62;
+    opacity:.76;letter-spacing:.06em}
+  #mode-select .ms-hint{font-size:clamp(10px,1.5vh,12.5px);opacity:.45}
+  @media (prefers-reduced-motion:reduce){#mode-select .ms-opt{transition:none}
+    #mode-select .ms-opt:hover{transform:none}}
+</style>
+</head>
+<body class="cctv-active">
+<div id="cctv-stage">
+<main id="viewport" aria-label="ASCII City CCTV feed">
+  <canvas id="cv" aria-hidden="true"></canvas>
+  <div id="fx"></div>
+  <div id="cctv-static"></div>
+  <div id="cctv-flash"></div>
+  <footer id="cctv-credits">H OVERLAY · G ASCII</footer>
+</main>
+
+
+<section id="cctv-panel" aria-live="polite">
+  <canvas id="cctv-map" width="128" height="128" aria-label="City map with the current feed location" title="Today's tour: city districts, the trail of visited feeds, and the camera (cone = bearing)"></canvas>
+  <div class="cctv-panel-text">
+    <div class="cctv-panel-row">
+      <span id="cctv-rec" class="cctv-rec-dot" title="recording">●</span>
+      <span id="cctv-feed-label">FEED 001</span>
+      <button id="cctv-sound" type="button" aria-pressed="false" aria-label="Toggle feed audio (S)">SOUND OFF</button>
+      <input id="cctv-vol" type="range" min="15" max="100" step="1" value="85" aria-label="Music volume" title="Music volume">
+    </div>
+    <div id="cctv-panel-street">ACQUIRING FEED</div>
+    <div id="cctv-panel-subline">—</div>
+    <div id="cctv-utc">LIVE · --:--:-- UTC <span id="cctv-audio" hidden></span></div>
+  </div>
+</section>
+</div>
+
+
+
+<div id="relay-transfer" aria-hidden="true"><span id="relay-transfer-text">CCTV // STANDBY</span></div>
+<div id="prelude-prompt" aria-hidden="true"></div>
+<aside id="mobile-hud" aria-live="polite" hidden>
+  <div id="mobile-hud-zone"></div>
+  <div id="mobile-hud-bearing"></div>
+</aside>
+<section id="mobile-context" aria-live="polite" hidden>
+  <div id="mobile-context-label"></div>
+  <strong id="mobile-context-title"></strong>
+  <span id="mobile-context-copy"></span>
+</section>
+<section id="orientation-guide" role="status" aria-live="polite" hidden>
+  <div>LANDSCAPE RECOMMENDED</div>
+  <p>Rotate for the widest city view.</p>
+  <button id="orientation-continue" type="button">CONTINUE</button>
+</section>
+<div id="touch-controls" aria-label="Touch controls" hidden>
+  <div id="touch-move" class="touch-stick" role="application" aria-label="Movement thumbstick">
+    <span class="touch-stick-thumb" aria-hidden="true"></span>
+  </div>
+  <div id="touch-look" class="touch-stick touch-look" role="application" aria-label="Look thumbstick">
+    <span class="touch-stick-thumb" aria-hidden="true"></span>
+  </div>
+  <div class="touch-action-cluster" aria-label="Game actions">
+    <button id="touch-action" type="button">USE</button>
+    <button id="touch-back" type="button">BACK</button>
+    <button id="touch-panel" type="button" aria-controls="interface" aria-expanded="false">PANEL</button>
+    <button id="touch-pause" type="button" aria-pressed="false">PAUSE</button>
+  </div>
+  <div id="touch-choice-controls" aria-label="Context choices" hidden>
+    <button type="button" data-touch-choice="0"></button>
+    <button type="button" data-touch-choice="1"></button>
+    <button type="button" data-touch-choice="2"></button>
+  </div>
+</div>
+<section id="touch-pause-menu" role="dialog" aria-modal="true" aria-labelledby="touch-pause-title" hidden>
+  <div id="touch-pause-title">CCTV FEED</div>
+  <p>This feed is view-only.</p>
+  <button id="touch-resume" type="button">RESUME</button>
+</section>
+<aside id="interface" aria-hidden="true">
+  <canvas id="interface-ascii" aria-hidden="true"></canvas>
+  <details id="diagnostics">
+    <summary aria-label="Toggle system details">SYS_DETAILS.DAT</summary>
+    <div class="diagnostic-body">
+      <section class="module">
+        <div class="module-label">00::INPUT_LINK</div>
+        <dl class="readout-grid">
+          <div><dt>Mouse</dt><dd id="ui-capture" class="accent">CCTV FEED</dd></div>
+          <div><dt>Auto tour</dt><dd id="ui-auto-tour" class="accent">OFF</dd></div>
+          <div><dt>Population</dt><dd id="ui-population" class="accent">VISIBLE</dd></div>
+        </dl>
+      </section>
+      <section class="module">
+        <div class="module-label">01::NAVIGATION</div>
+        <dl class="readout-grid">
+          <div><dt>Sector</dt><dd id="ui-sector" class="accent">CCTV</dd></div>
+          <div><dt>Coordinates</dt><dd id="ui-coord">0.00 / 0.00</dd></div>
+          <div><dt>Bearing</dt><dd id="ui-bearing">000° / NORTH</dd></div>
+          <div><dt>Render</dt><dd id="ui-fps">-- FPS</dd></div>
+          <div><dt>Weather</dt><dd id="ui-weather">RAIN</dd></div>
+        </dl>
+      </section>
+      <section class="module">
+        <div class="module-label">02::CITY_ACTIVITY</div>
+        <dl class="readout-grid">
+          <div><dt>Pedestrians</dt><dd id="ui-npcs">-- TRACKED</dd></div>
+          <div><dt>Vehicles</dt><dd id="ui-cars">-- TRACKED</dd></div>
+          <div><dt>Static nodes</dt><dd id="ui-static">-- INDEXED</dd></div>
+          <div><dt>In view</dt><dd id="ui-visible" class="accent">-- VISIBLE</dd></div>
+          <div><dt>Street props</dt><dd id="ui-props">-- INDEXED</dd></div>
+          <div><dt>Sign network</dt><dd id="ui-signs" class="accent">ONLINE</dd></div>
+          <div><dt>Path state</dt><dd id="ui-path" class="accent">CHECKING</dd></div>
+          <div><dt>Crossings</dt><dd id="ui-crossings">-- ACTIVE</dd></div>
+        </dl>
+      </section>
+      <section class="module">
+        <div class="module-label">04::PORTAL_NETWORK</div>
+        <dl class="readout-grid">
+          <div><dt>Zone</dt><dd id="ui-zone" class="accent">CCTV FEED</dd></div>
+          <div><dt>Nearest link</dt><dd id="ui-portal-distance">-- METRES</dd></div>
+          <div><dt>Link state</dt><dd id="ui-portal-state" class="accent">READY</dd></div>
+          <div><dt>Destination</dt><dd id="ui-destination">CCTV</dd></div>
+        </dl>
+      </section>
+    </div>
+  </details>
+  <section id="context-panel" aria-live="polite" hidden>
+    <div class="module-label" id="ui-context-label">03::LOCAL_CONTEXT</div>
+    <div class="empty-bay"><div><strong id="ui-context-title"></strong><span id="ui-context-copy"></span><div id="ui-context-choices" hidden></div></div></div>
+  </section>
+</aside>
+<section id="mode-select" role="dialog" aria-modal="true" aria-labelledby="ms-title">
+  <div class="ms-title" id="ms-title">ASCII CITY LIVE</div>
+  <div class="ms-sub">SELECT VIEWING MODE</div>
+  <div class="ms-options" role="radiogroup" aria-labelledby="ms-title">
+    <button class="ms-opt" type="button" role="radio" aria-checked="false" data-mode="walk">
+      <span class="ms-key">[1]</span>
+      <span class="ms-name">FREE WALK</span>
+      <span class="ms-desc">Walk the city yourself. Spawns at the same central
+        street corner every time. WASD or arrows to move, shift to run,
+        click the view to look around, esc to release the cursor.</span>
+    </button>
+    <button class="ms-opt" type="button" role="radio" aria-checked="false" data-mode="cctv">
+      <span class="ms-key">[2]</span>
+      <span class="ms-name">FLOCK CAMERA</span>
+      <span class="ms-desc">The fixed camera feed. Cuts between cameras on an
+        automatic tour of the city districts. View only &mdash; no walking.</span>
+    </button>
+  </div>
+  <div class="ms-hint">1 / 2 or &larr; &rarr; to choose &middot; ENTER to start</div>
+</section>
+<script>
+(function () {
+  var ENGINE = "./assets/main.js";
+  var STORE = "ascii-city-mode";
+  var menu = document.getElementById("mode-select");
+  var opts = Array.prototype.slice.call(menu.querySelectorAll(".ms-opt"));
+  var index = 0;
+
+  // Rebuild the CCTV-only DOM into the layout the walking game's CSS expects
+  // (#app is the two-column viewport + readout grid), and disarm the CCTV layer.
+  function enterWalkMode() {
+    // The engine's CCTV block is guarded by `if (window.__CCTV_ACTIVE__) return;`
+    // so pre-setting this makes that whole layer a no-op and leaves the walking
+    // engine underneath in charge of input and the camera.
+    window.__CCTV_ACTIVE__ = true;
+
+    var stage = document.getElementById("cctv-stage");
+    var viewport = document.getElementById("viewport");
+    var iface = document.getElementById("interface");
+    if (stage && viewport && iface) {
+      var app = document.createElement("div");
+      app.id = "app";
+      document.body.insertBefore(app, stage);
+      app.appendChild(viewport);
+      app.appendChild(iface);
+      stage.remove();                       // drops the CCTV feed panel with it
+    }
+    document.body.classList.remove("cctv-active");
+    if (iface) iface.setAttribute("aria-hidden", "false");
+
+    var capture = document.getElementById("ui-capture");
+    if (capture) capture.textContent = "CLICK CITY VIEW";
+    var pauseTitle = document.getElementById("touch-pause-title");
+    if (pauseTitle) pauseTitle.textContent = "PAUSED";
+    var pauseCopy = document.querySelector("#touch-pause-menu p");
+    if (pauseCopy) pauseCopy.textContent = "Free walk mode.";
+    document.title = "ASCII CITY LIVE \u00b7 FREE WALK";
+  }
+
+  function boot(mode) {
+    try { localStorage.setItem(STORE, mode); } catch (e) {}
+    menu.hidden = true;
+    document.removeEventListener("keydown", onKey);
+    if (mode === "walk") enterWalkMode();
+    import(ENGINE).catch(function (err) {
+      menu.hidden = false;
+      console.error("[boot] engine failed to load", err);
+    });
+  }
+
+  function select(i) {
+    index = (i + opts.length) % opts.length;
+    opts.forEach(function (o, n) {
+      o.setAttribute("aria-checked", n === index ? "true" : "false");
+    });
+    opts[index].focus();
+  }
+
+  function onKey(e) {
+    if (menu.hidden) return;
+    if (e.key === "1") { select(0); boot("walk"); }
+    else if (e.key === "2") { select(1); boot("cctv"); }
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { select(index - 1); }
+    else if (e.key === "ArrowRight" || e.key === "ArrowDown") { select(index + 1); }
+    else if (e.key === "Enter" || e.key === " ") { boot(opts[index].dataset.mode); }
+    else return;
+    e.preventDefault();
+  }
+
+  opts.forEach(function (o, n) {
+    o.addEventListener("click", function () { boot(o.dataset.mode); });
+    o.addEventListener("mouseenter", function () { select(n); });
+  });
+  document.addEventListener("keydown", onKey);
+
+  // ?mode=walk / ?mode=cctv skips the menu entirely.
+  var forced = new URLSearchParams(location.search).get("mode");
+  if (forced === "walk" || forced === "cctv") return boot(forced);
+
+  var last = null;
+  try { last = localStorage.getItem(STORE); } catch (e) {}
+  select(last === "cctv" ? 1 : 0);
+})();
+</script>
+<script src="./audio.js"></script>
+
+</body>
+</html>
