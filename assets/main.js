@@ -21253,11 +21253,13 @@
       // projection the full range is restored.
       // Under the shift lens the meaningful limit is how far the horizon slides,
       // not an angle: offset = v17*tan(pitch). v11/v17 == tan(0.35) == one
-      // half-screen, so this caps the slide at two half-screens (~0.63rad) and
-      // holds it there regardless of proximity.
+      // half-screen, so this caps the slide at three half-screens (~0.83rad) and
+      // holds it there regardless of proximity. Raising this number lets you look
+      // further up; the cost is the usual wide-angle stretch near the frame edge,
+      // and it cannot reach steep angles at any setting (see the memory note).
       ((n95 +=
         ((perspShiftMode
-          ? Math.atan((2 * v11) / v17)
+          ? Math.atan((3 * v11) / v17)
           : n458 >= 8
             ? 1.15
             : n458 <= 2
@@ -23793,6 +23795,49 @@
         frontierBase: "117a",
       }),
     })),
+    (window.__DBG_POP__ = () => ({
+      peds: pedestrians.length,
+      cars: cars.length,
+      nearPeds: nearPedestrians.length,
+      farPeds: farPedestrians.length,
+      nearCars: nearCars.length,
+      farCars: farCars.length,
+      renderGrid: renderGrid.reduce((a, c) => a + c.length, 0),
+      entityGrid: entityGrid.reduce((a, c) => a + c.length, 0),
+      sprites: spriteQueue.length,
+      zone: zone,
+      populationVisible: populationVisible,
+      hooks: {
+        TICK_FIRES: typeof window.__CCTV_TICK_FIRES__,
+        PACES: typeof window.__CCTV_PACES__,
+        BACKGROUND: typeof window.__CCTV_BACKGROUND__,
+        RECYCLE: typeof window.__CCTV_RECYCLE__,
+        AERIAL: typeof window.__CCTV_AERIAL__,
+        SIM_TICKS: typeof window.__CCTV_SIM_TICKS__,
+        STEP: typeof window.__CCTV_STEP__,
+      },
+    })),
+    (() => {
+      if (window.__CCTV_ACTIVE__) return;
+      function fn487(...arg1837) {
+        window.__CCTV_DEBUG__ && console.log("[CCTV]", ...arg1837);
+      }
+      window.__CCTV_ACTIVE__ = true;
+
+      // These hooks exist ONLY so this camera layer can drive the engine's
+      // simulation, so they are defined here - inside the layer, past the
+      // early-return - rather than in engine scope.
+      //
+      // They used to be defined unconditionally before this IIFE, which broke
+      // free-walk badly: the engine's per-frame guards are written as
+      // `"function" != typeof window.__CCTV_TICK_FIRES__ && <do it myself>`,
+      // meaning "only simulate this myself if CCTV isn't driving". Because the
+      // engine defined the hooks itself, those guards were ALWAYS false, so with
+      // no CCTV layer running nothing called them and the work simply never
+      // happened - classifyPopulation() never ran, so nearPedestrians/nearCars
+      // stayed empty, renderGrid stayed empty, and the streets were deserted.
+      // (Interiors still showed crowds: that path steps every entity directly
+      // instead of going through the near/far buckets.)
     "function" != typeof window.__CCTV_SCENE_TIME_SET__ &&
       ((window.__CCTV_SCENE_TIME_SET__ = (arg1829) => {
         n70 = arg1829;
@@ -23847,13 +23892,7 @@
         }
         for (let n539 = 0; n539 < cars.length; n539++) fn91(cars[n539], n539, arg1835, arg1836);
         for (let v2842 of cars) fn83(v2842);
-      })),
-    (() => {
-      if (window.__CCTV_ACTIVE__) return;
-      function fn487(...arg1837) {
-        window.__CCTV_DEBUG__ && console.log("[CCTV]", ...arg1837);
-      }
-      window.__CCTV_ACTIVE__ = true;
+      }));
       let uRLSearchParams = new URLSearchParams(location.search);
       window.__CCTV_DEBUG__ = "1" === uRLSearchParams.get("cctvDebug");
       let v2843 = "1" === uRLSearchParams.get("local"),
