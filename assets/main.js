@@ -504,7 +504,23 @@
       (v20 = float32Array2),
       (v21 = float32Array3));
   }
+  // Projection model. "shift" keeps the camera level and offsets the principal
+  // point (a tilt-shift lens); "rotate" is the original, which tilted the camera.
+  //
+  // The renderer casts a 2D ray fan in the ground plane, so a screen column is a
+  // world-VERTICAL plane. A rotated camera's columns are tilted planes, so the
+  // old vertical rotation disagreed with the horizontal fan: column offset stayed
+  // f*u/d when a rotated camera needs f*u/Z' with Z' = d*cos p + dh*sin p. The
+  // mismatch factor cos p + (dh/d)*sin p is 1 at pitch 0 and grows with dh/d, so
+  // tall buildings seen from close up while looking up splayed outward - bowed
+  // edges, domed roofs, and a squat look. Shifting instead of rotating keeps the
+  // columns world-vertical, which is exactly what the 2D fan already assumes.
+  var perspShiftMode = true;
   function fn10(arg21, arg22, arg23 = fn191()) {
+    if (perspShiftMode) {
+      let v94 = v11 + v17 * Math.tan(view.pitch) - (v17 * (arg21 - arg23)) / Math.max(0.0001, arg22);
+      return v94 < -1000000 ? -1000000 : v94 > 1000000 ? 1000000 : v94;
+    }
     let v93 = Math.atan2(arg21 - arg23, Math.max(0.0001, arg22)) - view.pitch;
     return v93 >= Math.PI / 2 - 0.00001
       ? -1000000
@@ -10534,7 +10550,7 @@
       fn11Result = fn11(3),
       v1121 = (function (arg760, arg761) {
         let v1135 = view.yaw + Math.atan2(v20[arg760], v21[arg760]),
-          v1136 = Math.atan((v11 - arg761) / v17) + view.pitch;
+          v1136 = Math.atan(float32Array18[arg761]);
         return hash2(Math.floor(480 * v1135), Math.floor(480 * v1136) + 8000);
       })(arg755, arg756);
     if (v1120 < 7) {
@@ -13303,7 +13319,7 @@
           fn268(arg1013, arg1014, 0, 0, 0, true, uint8Array14[arg1014] ? v23 / -v1516 : 1000000000);
         })(arg996, arg997)
       );
-    let v1485 = Math.atan((v11 - arg997) / v17) + view.pitch,
+    let v1485 = Math.atan(float32Array18[arg997]),
       fn12Result22 = hash2(
         Math.floor(7000 * float32Array20[arg996]) + 9000,
         Math.floor(7000 * (float32Array21[arg996] + v1485)) + 12000,
@@ -21228,8 +21244,25 @@
           v2522._depth < n458 &&
           (n458 = v2522._depth);
       }
+      // Proximity pitch clamp. The original cut the maximum look-up angle from
+      // 1.15rad (66deg) down to 0.35rad (20deg) as the wall ahead closed from 8
+      // to 2 units, which is why tall buildings seemed to LOSE height as you
+      // walked up to them - you were simply no longer allowed to tilt up far
+      // enough to see the top. It reads as a band-aid for the projection bug
+      // above (clamping the pitch hid the bowing), so with the shift-lens
+      // projection the full range is restored.
+      // Under the shift lens the meaningful limit is how far the horizon slides,
+      // not an angle: offset = v17*tan(pitch). v11/v17 == tan(0.35) == one
+      // half-screen, so this caps the slide at two half-screens (~0.63rad) and
+      // holds it there regardless of proximity.
       ((n95 +=
-        ((n458 >= 8 ? 1.15 : n458 <= 2 ? 0.35 : 1.15 - (0.8 * (8 - n458)) / 6) - n95) *
+        ((perspShiftMode
+          ? Math.atan((2 * v11) / v17)
+          : n458 >= 8
+            ? 1.15
+            : n458 <= 2
+              ? 0.35
+              : 1.15 - (0.8 * (8 - n458)) / 6) - n95) *
         Math.min(1, 6 * min83)),
         pitch > n95 ? (pitch = n95) : pitch < -n95 && (pitch = -n95),
         view.pitch > n95 ? (view.pitch = n95) : view.pitch < -n95 && (view.pitch = -n95));
@@ -21241,6 +21274,21 @@
       (function (arg1776) {
         fn9();
         let fn191Result10 = fn191();
+        perspShiftMode = "rotate" !== window.__PERSP__;
+        if (perspShiftMode) {
+          // Row -> height-per-unit-depth is a straight ramp about the shifted
+          // horizon, so world verticals stay vertical and parallel on screen.
+          let v2560 = v11 + v17 * Math.tan(arg1776);
+          for (let n460 = 0; n460 < rows; n460++) {
+            let v2561 = (v2560 - n460) / v17;
+            float32Array18[n460] = v2561;
+            let v2524 = v2561 < -0.001 ? fn191Result10 / -v2561 : 1000000000;
+            ((float32Array14[n460] = v2524),
+              (float32Array15[n460] = 1 - v2524 * v13),
+              (float32Array16[n460] = v2561 > 0.001 ? (fn196() - n14) / v2561 : 1000000000),
+              (float32Array17[n460] = v2561 < -0.001 ? n14 / -v2561 : 1000000000));
+          }
+        } else
         for (let n460 = 0; n460 < rows; n460++) {
           let v2523 = Math.atan((v11 - n460) / v17) + arg1776;
           float32Array18[n460] = Math.tan(v2523);
